@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三维柱状图 - 飞书风格</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: #f5f6f7;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+        overflow: hidden;
+        color: #1f2329;
+    }
+    #app {
+        display: flex;
+        height: 100vh;
+    }
+    /* ===== 左侧控制面板 - 飞书风格 ===== */
+    #sidebar {
+        width: 280px;
+        background: #fff;
+        padding: 0;
+        overflow-y: auto;
+        border-right: 1px solid #dee0e3;
+        flex-shrink: 0;
+    }
+    .sidebar-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #dee0e3;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .sidebar-header .icon {
+        width: 28px; height: 28px;
+        background: #3370ff;
+        border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 16px; font-weight: bold;
+    }
+    .sidebar-header h2 {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1f2329;
+    }
+    .ctrl-section {
+        padding: 16px 20px;
+        border-bottom: 1px solid #f0f1f3;
+    }
+    .ctrl-section-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #646a73;
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .ctrl-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        font-size: 13px;
+        color: #1f2329;
+    }
+    .ctrl-row label { color: #4e5969; cursor: pointer; }
+    .toggle {
+        position: relative;
+        width: 36px; height: 20px;
+        background: #c9cdd4;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.2s;
+        flex-shrink: 0;
+    }
+    .toggle.on { background: #3370ff; }
+    .toggle::after {
+        content: '';
+        position: absolute;
+        top: 2px; left: 2px;
+        width: 16px; height: 16px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle.on::after { transform: translateX(16px); }
+    .slider-row {
+        margin-bottom: 12px;
+    }
+    .slider-row .label-line {
+        display: flex; justify-content: space-between;
+        font-size: 12px; color: #646a73;
+        margin-bottom: 4px;
+    }
+    .slider-row .value { color: #3370ff; font-weight: 600; }
+    .slider-row input[type="range"] {
+        width: 100%;
+        height: 4px;
+        -webkit-appearance: none;
+        background: #e5e6eb;
+        border-radius: 2px;
+        outline: none;
+    }
+    .slider-row input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 14px; height: 14px;
+        background: #3370ff;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+    select, textarea {
+        width: 100%;
+        padding: 6px 10px;
+        background: #f7f8fa;
+        border: 1px solid #dee0e3;
+        border-radius: 6px;
+        color: #1f2329;
+        font-size: 12px;
+        font-family: inherit;
+    }
+    select:focus, textarea:focus {
+        border-color: #3370ff;
+        outline: none;
+    }
+    textarea {
+        resize: vertical;
+        min-height: 60px;
+    }
+    .btn {
+        background: #3370ff;
+        color: #fff;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+    .btn:hover { background: #2860e1; }
+    .btn-outline {
+        background: #fff;
+        color: #3370ff;
+        border: 1px solid #3370ff;
+        margin-left: 8px;
+    }
+    .btn-outline:hover { background: #f0f4ff; }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+        font-size: 12px;
+        color: #4e5969;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background 0.15s;
+        cursor: pointer;
+    }
+    .legend-item:hover { background: #f7f8fa; }
+    .legend-item .color-dot {
+        width: 10px; height: 10px;
+        border-radius: 3px;
+        flex-shrink: 0;
+    }
+    .help-text {
+        font-size: 11px;
+        color: #8f959e;
+        line-height: 1.8;
+    }
+    /* ===== 右侧画布 ===== */
+    #canvas-container {
+        flex: 1;
+        position: relative;
+        background: #fff;
+    }
+    #tooltip {
+        position: absolute;
+        pointer-events: none;
+        background: rgba(31,35,41,0.95);
+        color: #fff;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 12px;
+        display: none;
+        z-index: 10;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        white-space: nowrap;
+        line-height: 1.6;
+    }
+    #tooltip .tt-cat { color: #a0a4ab; font-size: 11px; }
+    #tooltip .tt-val { color: #fff; font-size: 18px; font-weight: 700; margin-top: 2px; }
+    /* CSS2D 标签样式 */
+    .axis-label-x {
+        color: #1f2329;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: inherit;
+        pointer-events: none;
+        white-space: nowrap;
+        padding: 2px 4px;
+    }
+    .axis-label-y {
+        color: #646a73;
+        font-size: 11px;
+        font-family: inherit;
+        pointer-events: none;
+        white-space: nowrap;
+    }
+    .axis-label-z {
+        color: #4e5969;
+        font-size: 11px;
+        font-weight: 500;
+        font-family: inherit;
+        pointer-events: none;
+        white-space: nowrap;
+        padding: 2px 4px;
+    }
+    .bar-value-label {
+        color: #1f2329;
+        font-size: 11px;
+        font-weight: 600;
+        font-family: inherit;
+        pointer-events: none;
+        white-space: nowrap;
+    }
+    .axis-title {
+        color: #3370ff;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: inherit;
+        pointer-events: none;
+        white-space: nowrap;
+    }
+    #stats-bar {
+        position: absolute;
+        top: 16px; right: 16px;
+        background: #fff;
+        border: 1px solid #dee0e3;
+        border-radius: 8px;
+        padding: 10px 16px;
+        font-size: 12px;
+        color: #646a73;
+        z-index: 5;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        line-height: 1.8;
+    }
+    #stats-bar .stat-val { color: #3370ff; font-weight: 700; }
+    #loading {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        color: #3370ff;
+        font-size: 14px;
+    }
+    .chart-title-bar {
+        position: absolute;
+        top: 16px; left: 20px;
+        z-index: 5;
+    }
+    .chart-title-bar .title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1f2329;
+    }
+    .chart-title-bar .subtitle {
+        font-size: 12px;
+        color: #8f959e;
+        margin-top: 2px;
+    }
+</style>
+</head>
+<body>
+<div id="app">
+    <!-- 左侧控制面板 -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="icon">3D</div>
+            <h2>三维柱状图</h2>
+        </div>
+
+        <div class="ctrl-section">
+            <div class="ctrl-section-title">显示设置</div>
+            <div class="ctrl-row">
+                <label for="autoRotate">自动旋转</label>
+                <div class="toggle on" id="autoRotate"></div>
+            </div>
+            <div class="ctrl-row">
+                <label for="showValues">数值标签</label>
+                <div class="toggle on" id="showValues"></div>
+            </div>
+            <div class="ctrl-row">
+                <label for="showGrid">网格线</label>
+                <div class="toggle on" id="showGrid"></div>
+            </div>
+            <div class="ctrl-row">
+                <label for="showShadows">阴影效果</label>
+                <div class="toggle on" id="showShadows"></div>
+            </div>
+            <div class="ctrl-row">
+                <label for="hideZeros">隐藏0值</label>
+                <div class="toggle on" id="hideZeros"></div>
+            </div>
+        </div>
+
+        <div class="ctrl-section">
+            <div class="ctrl-section-title">视角调节</div>
+            <div class="slider-row">
+                <div class="label-line"><span>旋转速度</span><span class="value" id="speedVal">0.5</span></div>
+                <input type="range" id="rotateSpeed" min="0" max="2" step="0.1" value="0.5">
+            </div>
+            <div class="slider-row">
+                <div class="label-line"><span>柱体间距</span><span class="value" id="gapVal">0.4</span></div>
+                <input type="range" id="barGap" min="0.1" max="1" step="0.05" value="0.4">
+            </div>
+            <div class="slider-row">
+                <div class="label-line"><span>柱体宽度</span><span class="value" id="widthVal">0.7</span></div>
+                <input type="range" id="barWidth" min="0.3" max="1" step="0.05" value="0.7">
+            </div>
+            <div class="slider-row">
+                <div class="label-line"><span>缩放</span><span class="value" id="zoomVal">100%</span></div>
+                <input type="range" id="zoomSlider" min="3" max="150" step="1" value="25">
+            </div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <button class="btn" style="flex:1;padding:4px 0;font-size:16px;" onclick="zoomChart(-1)">−</button>
+                <button class="btn" style="flex:1;padding:4px 0;font-size:16px;" onclick="zoomChart(1)">+</button>
+            </div>
+        </div>
+
+        <div class="ctrl-section">
+            <div class="ctrl-section-title">配色方案</div>
+            <select id="colorScheme">
+                <option value="feishu">飞书蓝（默认）</option>
+                <option value="rainbow">彩虹渐变</option>
+                <option value="warm">暖色渐变</option>
+                <option value="category">分类配色</option>
+                <option value="blue">深蓝渐变</option>
+            </select>
+        </div>
+
+        <div class="ctrl-section">
+            <div class="ctrl-section-title">飞书数据源</div>
+            <div id="dataSourceInfo" style="font-size:11px;color:#8f959e;margin-bottom:10px;"></div>
+            <div class="slider-row">
+                <div class="label-line"><span>X轴（类别）</span></div>
+                <select id="xField"></select>
+            </div>
+            <div class="slider-row">
+                <div class="label-line"><span>Z轴（系列）</span></div>
+                <select id="zField"></select>
+            </div>
+            <div class="slider-row">
+                <div class="label-line"><span>Y轴（数值）</span></div>
+                <select id="yMode">
+                    <option value="count">计数（记录条数）</option>
+                    <option value="sum">求和（计数标记）</option>
+                </select>
+            </div>
+            <div style="margin-top:8px;">
+                <button class="btn" id="applyFieldsBtn">生成图表</button>
+                <button class="btn btn-outline" onclick="resetView()">重置视角</button>
+            </div>
+        </div>
+
+        <div class="ctrl-section">
+            <div class="ctrl-section-title">图例</div>
+            <div id="legend"></div>
+        </div>
+
+        <div class="ctrl-section">
+            <div class="ctrl-section-title">操作说明</div>
+            <div class="help-text">
+                左键拖拽：旋转视角<br>
+                右键拖拽：平移视角<br>
+                滚轮：缩放<br>
+                悬停柱体：查看详情
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧 3D 画布 -->
+    <div id="canvas-container">
+        <div id="loading">加载中...</div>
+        <div class="chart-title-bar">
+            <div class="title" id="chartTitle">客诉数据三维分析</div>
+            <div class="subtitle" id="chartSubtitle">从飞书多维表格加载</div>
+        </div>
+        <div id="stats-bar"></div>
+        <div id="tooltip"></div>
+    </div>
+</div>
+
+<script>window.feishuData = {"table_name":"十字表","base_name":"哈厂客诉各科达成","total_records":67,"fields":["线别","类别","工厂","区分","月别","风险等级","类别（自动匹配）","品项","规格","二次诉因","诉因","计数标记"],"field_values":{"线别":["RT1","RT10","RT2","RT3","RT4","RT5","RT7","RT9","SLD1"],"类别":["\"无匹配标签\"","其他","其他异物","冰红茶絮状沉淀","冷冻变性","包装破损","变质沉淀","变质浑浊","口感异常","塑料异物","容量短缺/盗饮","异味","昆虫异物","未开盖变质","橡胶异物","瓶/罐变形","瓶口发霉","瓶口脏污","瓶口虫卵","瓶身异物","纸质类异物","绿藻污染","蛋白质/果汁/茶粉沉淀/矿盐析出","饮用不适"],"工厂":["哈厂","水分厂"],"区分":["水车间","饮料车间"],"月别":["01月","02月","03月","04月","05月","06月","07月","08月"],"风险等级":["A+级","A级","B级"],"类别（自动匹配）":["品质类","品质类,品质类","特性类","特性类,特性类"],"品项":["冰糖雪梨","冰红茶柠檬味","冰红茶柠檬味,冰红茶柠檬味","劲凉冰红茶","喝开水","康师傅包装水","橙汁","水蜜桃","炼乳奶茶","经典奶茶","茉莉柚茶","茉莉蜜茶","蜂蜜茉莉味","蜜桃乌龙","酸奶味","酸梅汤","酸梅汤,酸梅汤","金桔柠檬","鲜果橙"],"规格":["1000mL","1000mL,1000mL","2L","330mL","500mL","500mL,500mL","550mL"],"二次诉因":["其他","其他异物","冰红茶絮状沉淀","冰红茶絮状沉淀,冰红茶絮状沉淀","冷冻变性","包装破损","变质变味","变质沉淀","变质浑浊","变质胀瓶","口感异常","塑料类异物","容器内镶嵌异物","异味","无日期","昆虫类异物","橡胶类异物","瓶/罐变形","瓶/罐变形,瓶/罐变形","瓶口发霉","瓶口污染","瓶口虫卵","瓶身异物","瓶身破损","矿盐析出","纸质类异物","绿藻污染","蛋白质沉淀","非金属矿物异物","饮用不适"],"诉因":["其他","其他异物","冰红茶絮状沉淀","冷冻变性","包装破损","包装脏污","口感异常","塑料异物","套标不良","容量短缺/盗饮","开盖变质","异味","异液","打印异常","接头标","支撑环破损","无打印","无标","昆虫异物","未开盖变质","橡胶异物","漏液变质","瓶/罐变形","瓶体颜色异常","瓶口发霉","瓶口脏污","瓶口虫卵","瓶标划手","瓶标破损","瓶盖内塞变形","瓶身异物","空瓶成型不良","蛋白质/果汁/茶粉沉淀/矿盐析出","金属异物","颜色异常","饮用不适","高歪盖"],"计数标记":["1"]},"records":[{"线别":"RT4","类别":"变质沉淀","工厂":"哈厂","区分":"饮料车间","月别":"05月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"茉莉蜜茶","规格":"1000mL","二次诉因":"变质沉淀","诉因":"瓶盖内塞变形","计数标记":"1"},{"线别":"RT10","类别":"塑料异物","工厂":"哈厂","区分":"水车间","月别":"05月","风险等级":"A+级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"塑料类异物","诉因":"打印异常","计数标记":"1"},{"线别":"RT5","类别":"冰红茶絮状沉淀","工厂":"哈厂","区分":"饮料车间","月别":"05月","风险等级":"B级","类别（自动匹配）":"特性类","品项":"冰红茶柠檬味","规格":"1000mL","二次诉因":"冰红茶絮状沉淀","诉因":"无打印","计数标记":"1"},{"线别":"RT2","类别":"变质沉淀","工厂":"哈厂","区分":"饮料车间","月别":"05月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"500mL","二次诉因":"变质沉淀","诉因":"冷冻变性","计数标记":"1"},{"线别":"RT9","类别":"包装破损","工厂":"哈厂","区分":"水车间","月别":"05月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"瓶身破损","诉因":"异液","计数标记":"1"},{"线别":"RT1","类别":"蛋白质/果汁/茶粉沉淀/矿盐析出","工厂":"哈厂","区分":"饮料车间","月别":"04月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"冰糖雪梨","规格":"2L","二次诉因":"变质沉淀","诉因":"容量短缺/盗饮","计数标记":"1"},{"线别":"RT1","类别":"其他","工厂":"哈厂","区分":"饮料车间","月别":"04月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"2L","二次诉因":"其他","诉因":"其他","计数标记":"1"},{"线别":"RT4","类别":"其他异物","工厂":"哈厂","区分":"饮料车间","月别":"04月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"冰糖雪梨","规格":"330mL","二次诉因":"非金属矿物异物","诉因":null,"计数标记":"1"},{"线别":"RT5","类别":"昆虫异物","工厂":"哈厂","区分":"饮料车间","月别":"04月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"蜜桃乌龙","规格":"1000mL","二次诉因":"昆虫类异物","诉因":null,"计数标记":"1"},{"线别":"RT9","类别":"其他异物","工厂":"哈厂","区分":"水车间","月别":"04月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"其他异物","诉因":null,"计数标记":"1"},{"线别":"RT9","类别":"异味","工厂":"哈厂","区分":"水车间","月别":"04月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"异味","诉因":null,"计数标记":"1"},{"线别":"RT2","类别":"其他异物","工厂":"哈厂","区分":"饮料车间","月别":"03月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"500mL","二次诉因":"其他异物","诉因":null,"计数标记":"1"},{"线别":"RT2","类别":"\"无匹配标签\"","工厂":"哈厂","区分":"饮料车间","月别":"04月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"劲凉冰红茶","规格":"500mL","二次诉因":"无日期","诉因":null,"计数标记":"1"},{"线别":"RT5","类别":"昆虫异物","工厂":"哈厂","区分":"饮料车间","月别":"03月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"茉莉柚茶","规格":"500mL","二次诉因":"昆虫类异物","诉因":null,"计数标记":"1"},{"线别":"RT2","类别":"异味","工厂":"哈厂","区分":"饮料车间","月别":"03月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"500mL","二次诉因":"异味","诉因":null,"计数标记":"1"},{"线别":"RT9","类别":"其他异物","工厂":"哈厂","区分":"水车间","月别":"03月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"其他异物","诉因":null,"计数标记":"1"},{"线别":"RT2","类别":"蛋白质/果汁/茶粉沉淀/矿盐析出","工厂":"哈厂","区分":"饮料车间","月别":"02月","风险等级":"B级","类别（自动匹配）":"特性类","品项":"经典奶茶","规格":"500mL","二次诉因":"蛋白质沉淀","诉因":null,"计数标记":"1"},{"线别":"RT7","类别":"其他异物","工厂":"哈厂","区分":"水车间","月别":"02月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"喝开水","规格":"550mL","二次诉因":"其他异物","诉因":null,"计数标记":"1"},{"线别":"RT4","类别":"其他","工厂":"哈厂","区分":"水车间","月别":"02月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"水蜜桃","规格":"330mL","二次诉因":"其他","诉因":null,"计数标记":"1"},{"线别":"RT4","类别":"冰红茶絮状沉淀","工厂":"哈厂","区分":"饮料车间","月别":"02月","风险等级":"B级","类别（自动匹配）":"特性类","品项":"冰红茶柠檬味","规格":"330mL","二次诉因":"冰红茶絮状沉淀","诉因":null,"计数标记":"1"},{"线别":"RT1","类别":"蛋白质/果汁/茶粉沉淀/矿盐析出","工厂":"哈厂","区分":"饮料车间","月别":"02月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"1000mL","二次诉因":"变质沉淀","诉因":null,"计数标记":"1"},{"线别":"RT2","类别":"蛋白质/果汁/茶粉沉淀/矿盐析出","工厂":"哈厂","区分":"饮料车间","月别":"02月","风险等级":"B级","类别（自动匹配）":"特性类","品项":"炼乳奶茶","规格":"500mL","二次诉因":"蛋白质沉淀","诉因":null,"计数标记":"1"},{"线别":"RT5","类别":"其他异物","工厂":"哈厂","区分":"饮料车间","月别":"02月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"1000mL","二次诉因":"容器内镶嵌异物","诉因":null,"计数标记":"1"},{"线别":"RT5","类别":"冰红茶絮状沉淀","工厂":"哈厂","区分":"饮料车间","月别":"02月","风险等级":"B级","类别（自动匹配）":"特性类","品项":"冰红茶柠檬味","规格":"1000mL","二次诉因":"冰红茶絮状沉淀","诉因":null,"计数标记":"1"},{"线别":"SLD1","类别":"冷冻变性","工厂":"水分厂","区分":"水车间","月别":"02月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"冷冻变性","诉因":null,"计数标记":"1"},{"线别":"RT7","类别":"瓶身异物","工厂":"哈厂","区分":"水车间","月别":"01月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"喝开水","规格":"550mL","二次诉因":"瓶身异物","诉因":null,"计数标记":"1"},{"线别":"RT9","类别":"蛋白质/果汁/茶粉沉淀/矿盐析出","工厂":"哈厂","区分":"水车间","月别":"01月","风险等级":"B级","类别（自动匹配）":"特性类","品项":"康师傅包装水","规格":"550mL","二次诉因":"矿盐析出","诉因":null,"计数标记":"1"},{"线别":"RT9","类别":"口感异常","工厂":"哈厂","区分":"水车间","月别":"01月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"口感异常","诉因":null,"计数标记":"1"},{"线别":"RT4","类别":"蛋白质/果汁/茶粉沉淀/矿盐析出","工厂":"哈厂","区分":"饮料车间","月别":"01月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"酸奶味","规格":"1000mL","二次诉因":"变质沉淀","诉因":null,"计数标记":"1"},{"线别":"RT5","类别":"其他异物","工厂":"哈厂","区分":"饮料车间","月别":"01月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"金桔柠檬","规格":"500mL","二次诉因":"其他异物","诉因":null,"计数标记":"1"},{"线别":"RT9","类别":"其他","工厂":"哈厂","区分":"水车间","月别":"01月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"其他","诉因":null,"计数标记":"1"},{"线别":"RT2","类别":"昆虫异物","工厂":"哈厂","区分":"饮料车间","月别":"01月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"鲜果橙","规格":"500mL","二次诉因":"昆虫类异物","诉因":null,"计数标记":"1"},{"线别":"RT2","类别":"蛋白质/果汁/茶粉沉淀/矿盐析出","工厂":"哈厂","区分":"饮料车间","月别":"01月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"酸梅汤","规格":"500mL","二次诉因":"变质沉淀","诉因":null,"计数标记":"1"},{"线别":"RT3","类别":"昆虫异物","工厂":"哈厂","区分":"饮料车间","月别":"05月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"500mL","二次诉因":"昆虫类异物","诉因":"饮用不适","计数标记":"1"},{"线别":"RT1","类别":"其他","工厂":"哈厂","区分":"饮料车间","月别":"05月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"2L","二次诉因":"其他","诉因":"高歪盖","计数标记":"1"},{"线别":"RT2","类别":"饮用不适","工厂":"哈厂","区分":"饮料车间","月别":"05月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"橙汁","规格":"500mL","二次诉因":"饮用不适","诉因":"口感异常","计数标记":"1"},{"线别":"RT1","类别":"口感异常","工厂":"哈厂","区分":"饮料车间","月别":"06月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"1000mL","二次诉因":"口感异常","诉因":"瓶身异物","计数标记":"1"},{"线别":"RT4","类别":"瓶口发霉","工厂":"哈厂","区分":"饮料车间","月别":"06月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"330mL","二次诉因":"瓶口发霉","诉因":"支撑环破损","计数标记":"1"},{"线别":"RT3","类别":"容量短缺/盗饮","工厂":"哈厂","区分":"饮料车间","月别":"06月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"500mL","二次诉因":"其他","诉因":"其他","计数标记":"1"},{"线别":"RT1","类别":"橡胶异物","工厂":"哈厂","区分":"饮料车间","月别":"06月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"1000mL","二次诉因":"橡胶类异物","诉因":"蛋白质/果汁/茶粉沉淀/矿盐析出","计数标记":"1"},{"线别":"RT3","类别":"口感异常","工厂":"哈厂","区分":"饮料车间","月别":"06月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"茉莉柚茶","规格":"500mL","二次诉因":"异味","诉因":"冰红茶絮状沉淀","计数标记":"1"},{"线别":"RT1","类别":"未开盖变质","工厂":"哈厂","区分":"饮料车间","月别":"06月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"茉莉蜜茶","规格":"1000mL","二次诉因":"变质胀瓶","诉因":"颜色异常","计数标记":"1"},{"线别":"RT2","类别":"其他异物","工厂":"哈厂","区分":"饮料车间","月别":"06月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"酸梅汤","规格":"500mL","二次诉因":"其他异物","诉因":"异味","计数标记":"1"},{"线别":"RT1","类别":"冰红茶絮状沉淀","工厂":"哈厂","区分":"饮料车间","月别":"07月","风险等级":"B级","类别（自动匹配）":"特性类","品项":"冰红茶柠檬味","规格":"2L","二次诉因":"冰红茶絮状沉淀","诉因":"其他","计数标记":"1"},{"线别":"RT4","类别":"包装破损","工厂":"哈厂","区分":"饮料车间","月别":"07月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"茉莉蜜茶","规格":"1000mL","二次诉因":"包装破损","诉因":"瓶/罐变形","计数标记":"1"},{"线别":"RT10","类别":"其他异物","工厂":"哈厂","区分":"水车间","月别":"07月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"其他异物","诉因":"包装脏污","计数标记":"1"},{"线别":"RT1","类别":"异味","工厂":"哈厂","区分":"饮料车间","月别":"07月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"1000mL","二次诉因":"变质变味","诉因":"包装破损","计数标记":"1"},{"线别":"RT3","类别":"冰红茶絮状沉淀","工厂":"哈厂","区分":"饮料车间","月别":"07月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"500mL","二次诉因":"冰红茶絮状沉淀","诉因":"空瓶成型不良","计数标记":"1"},{"线别":"RT9","类别":"其他异物","工厂":"哈厂","区分":"水车间","月别":"07月","风险等级":"A+级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"其他异物","诉因":"瓶体颜色异常","计数标记":"1"},{"线别":"RT1","类别":"变质沉淀","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"1000mL","二次诉因":"变质沉淀","诉因":"未开盖变质","计数标记":"1"},{"线别":"RT9","类别":"瓶/罐变形","工厂":"哈厂","区分":"水车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"瓶/罐变形","诉因":"漏液变质","计数标记":"1"},{"线别":"RT3","类别":"瓶口脏污","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"冰红茶柠檬味","规格":"500mL","二次诉因":"瓶口污染","诉因":"开盖变质","计数标记":"1"},{"线别":"RT9","类别":"纸质类异物","工厂":"哈厂","区分":"水车间","月别":"08月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"纸质类异物","诉因":"金属异物","计数标记":"1"},{"线别":"RT2","类别":"瓶口虫卵","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"500mL","二次诉因":"瓶口虫卵","诉因":"橡胶异物","计数标记":"1"},{"线别":"RT2","类别":"昆虫异物","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"鲜果橙","规格":"500mL","二次诉因":"昆虫类异物","诉因":"塑料异物","计数标记":"1"},{"线别":"RT9","类别":"绿藻污染","工厂":"哈厂","区分":"水车间","月别":"08月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"绿藻污染","诉因":"昆虫异物","计数标记":"1"},{"线别":"RT1","类别":"瓶口发霉","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"酸奶味","规格":"1000mL","二次诉因":"瓶口发霉","诉因":"其他异物","计数标记":"1"},{"线别":"RT9","类别":"异味","工厂":"哈厂","区分":"水车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"异味","诉因":"接头标","计数标记":"1"},{"线别":"RT2","类别":"变质浑浊","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"500mL","二次诉因":"变质浑浊","诉因":"无标","计数标记":"1"},{"线别":"RT1","类别":"瓶口脏污","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"酸奶味","规格":"1000mL","二次诉因":"瓶口污染","诉因":"瓶标划手","计数标记":"1"},{"线别":"RT4","类别":"冰红茶絮状沉淀","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"特性类","品项":"冰红茶柠檬味","规格":"330mL","二次诉因":"冰红茶絮状沉淀","诉因":"瓶标破损","计数标记":"1"},{"线别":"RT2","类别":"其他异物","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"A级","类别（自动匹配）":"品质类","品项":"蜂蜜茉莉味","规格":"500mL","二次诉因":"其他异物","诉因":"套标不良","计数标记":"1"},{"线别":"RT3","类别":"冰红茶絮状沉淀","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"特性类,特性类","品项":"冰红茶柠檬味,冰红茶柠檬味","规格":"500mL,500mL","二次诉因":"冰红茶絮状沉淀,冰红茶絮状沉淀","诉因":"其他","计数标记":"1"},{"线别":"RT1","类别":"冰红茶絮状沉淀","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"特性类,特性类","品项":"冰红茶柠檬味,冰红茶柠檬味","规格":"1000mL,1000mL","二次诉因":"冰红茶絮状沉淀,冰红茶絮状沉淀","诉因":"瓶口发霉","计数标记":"1"},{"线别":"RT1","类别":"瓶/罐变形","工厂":"哈厂","区分":"饮料车间","月别":"08月","风险等级":"B级","类别（自动匹配）":"品质类,品质类","品项":"酸梅汤,酸梅汤","规格":"1000mL,1000mL","二次诉因":"瓶/罐变形,瓶/罐变形","诉因":"瓶口虫卵","计数标记":"1"},{"线别":null,"类别":"容量短缺/盗饮","工厂":"哈厂","区分":null,"月别":"07月","风险等级":null,"类别（自动匹配）":null,"品项":null,"规格":null,"二次诉因":null,"诉因":"瓶口脏污","计数标记":"1"},{"线别":"RT9","类别":"其他","工厂":"哈厂","区分":"水车间","月别":"01月","风险等级":"B级","类别（自动匹配）":"品质类","品项":"康师傅包装水","规格":"550mL","二次诉因":"其他","诉因":null,"计数标记":"1"}]};</script>
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ===== 飞书数据：从多维表格"十字表"获取的真实数据 =====
+const feishuData = window.feishuData || { fields: [], records: [], field_values: {} };
+
+// 从飞书记录聚合数据：按 X字段 分组、Z字段 分系列，Y轴计数或求和
+function aggregateFeishuData(xField, zField, yMode) {
+    const records = feishuData.records || [];
+    const xVals = (feishuData.field_values || {})[xField] || [];
+    const zVals = (feishuData.field_values || {})[zField] || [];
+
+    // 如果字段没有预设值，从记录中提取唯一值
+    const xCats = xVals.length > 0 ? xVals : [...new Set(records.map(r => r[xField]).filter(v => v))].sort();
+    const zCats = zVals.length > 0 ? zVals : [...new Set(records.map(r => r[zField]).filter(v => v))].sort();
+
+    // 初始化计数矩阵
+    const matrix = {};
+    zCats.forEach(zv => {
+        matrix[zv] = {};
+        xCats.forEach(xv => { matrix[zv][xv] = 0; });
+    });
+
+    // 遍历记录聚合
+    records.forEach(r => {
+        const xv = r[xField];
+        const zv = r[zField];
+        if (!xv || !zv) return;
+        if (!matrix[zv]) matrix[zv] = {};
+        if (!matrix[zv][xv]) matrix[zv][xv] = 0;
+        if (yMode === 'sum') {
+            const v = parseFloat(r['计数标记']) || 0;
+            matrix[zv][xv] += v;
+        } else {
+            matrix[zv][xv] += 1;
+        }
+    });
+
+    // 构建图表数据
+    const series = zCats.map(zv => ({
+        name: zv,
+        data: xCats.map(xv => matrix[zv][xv] || 0)
+    }));
+
+    // 过滤掉全为0的系列
+    const filteredSeries = series.filter(s => s.data.some(v => v > 0));
+
+    return {
+        categories: xCats,
+        series: filteredSeries.length > 0 ? filteredSeries : series
+    };
+}
+
+// 初始化飞书字段下拉框
+function initFeishuFields() {
+    const fields = feishuData.fields || [];
+    const xSelect = document.getElementById('xField');
+    const zSelect = document.getElementById('zField');
+    const infoDiv = document.getElementById('dataSourceInfo');
+
+    // 显示数据源信息
+    infoDiv.innerHTML = `来源：${feishuData.base_name || '飞书'} → ${feishuData.table_name || '十字表'}<br>记录数：${feishuData.total_records || 0} 条`;
+
+    // 填充字段下拉框
+    xSelect.innerHTML = '';
+    zSelect.innerHTML = '';
+    fields.forEach(f => {
+        xSelect.appendChild(new Option(f, f));
+        zSelect.appendChild(new Option(f, f));
+    });
+
+    // 设置默认值
+    xSelect.value = '线别';
+    zSelect.value = '类别';
+}
+
+let currentData = { categories: [], series: [] };
+let scene, camera, renderer, labelRenderer, controls;
+let bars = [];
+let gridGroup, axisGroup, labelGroup;
+let raycaster, mouse;
+
+// ===== 飞书风格配色 =====
+const colorSchemes = {
+    feishu: [
+        new THREE.Color(0x3370ff),  // 飞书蓝
+        new THREE.Color(0x00d6B9),  // 青绿
+        new THREE.Color(0xff9f2e),  // 橙
+        new THREE.Color(0xF54A45),  // 红
+        new THREE.Color(0x8c6fff),  // 紫
+        new THREE.Color(0xFFD60F),  // 黄
+    ],
+    rainbow: (t) => new THREE.Color().setHSL(t * 0.85, 0.75, 0.5),
+    warm: (t) => new THREE.Color().setHSL(0.02 + t * 0.12, 0.85, 0.5),
+    blue: (t) => new THREE.Color().setHSL(0.55 + t * 0.15, 0.8, 0.35 + t * 0.3),
+    category: [
+        new THREE.Color(0x5B8FF9),
+        new THREE.Color(0x5AD8A6),
+        new THREE.Color(0x5D7092),
+        new THREE.Color(0xF6BD16),
+        new THREE.Color(0xE8684A),
+        new THREE.Color(0x6DC8EC),
+    ],
+};
+
+function getColor(scheme, seriesIdx, totalSeries, value, maxValue) {
+    switch (scheme) {
+        case 'feishu': return colorSchemes.feishu[seriesIdx % colorSchemes.feishu.length];
+        case 'rainbow': {
+            const t = totalSeries > 1 ? seriesIdx / (totalSeries - 1) : 0.5;
+            return colorSchemes.rainbow(t);
+        }
+        case 'warm': {
+            const t = totalSeries > 1 ? seriesIdx / (totalSeries - 1) : 0.5;
+            return colorSchemes.warm(t);
+        }
+        case 'blue': {
+            const vt = maxValue > 0 ? value / maxValue : 0;
+            return colorSchemes.blue(vt);
+        }
+        case 'category': return colorSchemes.category[seriesIdx % colorSchemes.category.length];
+        default: return new THREE.Color(0x3370ff);
+    }
+}
+
+// ===== 初始化 =====
+function init() {
+    const container = document.getElementById('canvas-container');
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
+
+    camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 200);
+    camera.position.set(18, 14, 18);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // CSS2D 标签渲染器 - 关键：让所有轴标签始终可见
+    labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(container.clientWidth, container.clientHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    container.appendChild(labelRenderer.domElement);
+
+    // OrbitControls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.5;
+    controls.minDistance = 3;
+    controls.maxDistance = 150;
+    controls.enableZoom = true;
+    controls.zoomSpeed = 1.2;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    controls.target.set(0, 2.5, -3);
+
+    // 灯光设置 - 模拟飞书的明亮风格
+    const ambient = new THREE.AmbientLight(0xffffff, 0.65);
+    scene.add(ambient);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    dirLight.position.set(12, 20, 8);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.left = -20;
+    dirLight.shadow.camera.right = 20;
+    dirLight.shadow.camera.top = 20;
+    dirLight.shadow.camera.bottom = -20;
+    dirLight.shadow.camera.near = 0.5;
+    dirLight.shadow.camera.far = 50;
+    scene.add(dirLight);
+
+    const fillLight = new THREE.DirectionalLight(0xb4d0ff, 0.15);
+    fillLight.position.set(-8, 8, -8);
+    scene.add(fillLight);
+
+    // 底面
+    const floorGeo = new THREE.PlaneGeometry(50, 50);
+    const floorMat = new THREE.MeshStandardMaterial({
+        color: 0xf7f8fa,
+        roughness: 0.95,
+        metalness: 0.05
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.01;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
+    window.addEventListener('resize', onResize);
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('click', onCanvasClick);
+
+    document.getElementById('loading').style.display = 'none';
+
+    // 初始化飞书字段下拉框并加载默认数据
+    initFeishuFields();
+    currentData = aggregateFeishuData('线别', '类别', 'count');
+    document.getElementById('chartTitle').textContent = '线别 × 类别 三维分析';
+    document.getElementById('chartSubtitle').textContent = 'X轴：线别 · Y轴：记录数 · Z轴：类别';
+    buildChart(currentData);
+    animate();
+}
+
+// ===== 创建 CSS2D 标签 =====
+function createLabel(text, className = 'axis-label-x') {
+    const div = document.createElement('div');
+    div.className = className;
+    div.textContent = text;
+    return new CSS2DObject(div);
+}
+
+// ===== 构建图表 =====
+function buildChart(data) {
+    // 清除旧内容
+    if (bars.length > 0) {
+        bars.forEach(b => {
+            scene.remove(b.mesh);
+            b.mesh.geometry.dispose();
+            b.mesh.material.dispose();
+            if (b.label) scene.remove(b.label);
+        });
+        bars = [];
+    }
+    if (gridGroup) scene.remove(gridGroup);
+    if (axisGroup) scene.remove(axisGroup);
+    if (labelGroup) scene.remove(labelGroup);
+
+    gridGroup = new THREE.Group();
+    axisGroup = new THREE.Group();
+    labelGroup = new THREE.Group();
+    scene.add(gridGroup, axisGroup, labelGroup);
+
+    const categories = data.categories;
+    const series = data.series;
+    const catCount = categories.length;
+    const serCount = series.length;
+
+    let maxValue = 0;
+    series.forEach(s => s.data.forEach(v => { if (v > maxValue) maxValue = v; }));
+    maxValue = Math.max(maxValue, 1);
+
+    const barWidth = parseFloat(document.getElementById('barWidth').value);
+    const gap = parseFloat(document.getElementById('barGap').value);
+    const unitWidth = barWidth + gap;
+    const totalWidth = catCount * unitWidth;
+    const totalDepth = serCount * unitWidth;
+    const heightScale = 7 / maxValue;
+    const xOffset = -totalWidth / 2;
+    const zOffset = 0;
+
+    const scheme = document.getElementById('colorScheme').value;
+    const showValues = document.getElementById('showValues').classList.contains('on');
+    const showGrid = document.getElementById('showGrid').classList.contains('on');
+    const showShadows = document.getElementById('showShadows').classList.contains('on');
+    const hideZeros = document.getElementById('hideZeros').classList.contains('on');
+
+    // ===== 创建柱体：X轴=类别，Z轴=系列，Y轴=数值高度 =====
+    for (let ci = 0; ci < catCount; ci++) {
+        for (let si = 0; si < serCount; si++) {
+            const value = series[si].data[ci] || 0;
+            if (hideZeros && value === 0) continue;
+            const h = Math.max(value * heightScale, 0.05);
+            const x = xOffset + ci * unitWidth + unitWidth / 2;
+            const z = zOffset - si * unitWidth - unitWidth / 2;
+
+            const geo = new THREE.BoxGeometry(barWidth, h, barWidth);
+            const color = getColor(scheme, si, serCount, value, maxValue);
+            const mat = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.35,
+                metalness: 0.15,
+                emissive: color.clone().multiplyScalar(0.08),
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, h / 2, z);
+            mesh.castShadow = showShadows;
+            mesh.receiveShadow = true;
+            mesh.userData = {
+                category: categories[ci],
+                series: series[si].name,
+                value: value,
+                color: color.getHexString(),
+            };
+            scene.add(mesh);
+            bars.push({ mesh, category: categories[ci], series: series[si].name, value });
+
+            // 数值标签 - 在柱顶上方
+            if (showValues) {
+                const label = createLabel(String(value), 'bar-value-label');
+                label.position.set(x, h + 0.35, z);
+                labelGroup.add(label);
+            }
+        }
+    }
+
+    // ===== 坐标轴线 - 三轴框架 =====
+    const axisColor = 0xc9cdd4;
+    const axisMat = new THREE.LineBasicMaterial({ color: axisColor, transparent: true, opacity: 0.8 });
+    const x0 = xOffset - gap / 2;
+    const z0 = zOffset + gap / 2;
+    const x1 = xOffset + totalWidth + gap / 2;
+    const z1 = zOffset - totalDepth - gap / 2;
+    const yMax = 7.5;
+
+    // Y轴（垂直，在前左角）
+    axisGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x0, yMax, z0)]), axisMat));
+    // Y轴（垂直，在后左角 - 延伸到后方）
+    axisGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(x0, 0, z1), new THREE.Vector3(x0, yMax, z1)]), axisMat));
+
+    // X轴（底面前边）
+    axisGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, 0, z0)]), axisMat));
+    // X轴（底面后边）
+    axisGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(x0, 0, z1), new THREE.Vector3(x1, 0, z1)]), axisMat));
+
+    // Z轴（底面左边前）
+    axisGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x0, 0, z1)]), axisMat));
+    // Z轴（底面右边前）
+    axisGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(x1, 0, z0), new THREE.Vector3(x1, 0, z1)]), axisMat));
+
+    // ===== Y轴刻度 + 标签 + 3D网格框 =====
+    const tickCount = 5;
+    for (let i = 0; i <= tickCount; i++) {
+        const tickVal = (maxValue / tickCount) * i;
+        const y = tickVal * heightScale;
+
+        // 刻度线
+        const tickPts = [new THREE.Vector3(x0 - 0.15, y, z0), new THREE.Vector3(x0, y, z0)];
+        axisGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(tickPts),
+            new THREE.LineBasicMaterial({ color: 0xc9cdd4 })));
+
+        // Y轴刻度标签
+        const tickLabel = createLabel(tickVal.toFixed(maxValue > 50 ? 0 : 1), 'axis-label-y');
+        tickLabel.position.set(x0 - 0.3, y, z0);
+        labelGroup.add(tickLabel);
+
+        // 3D网格：水平线沿X方向（前+后）
+        if (showGrid && i > 0) {
+            // 前边水平线
+            gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+                [new THREE.Vector3(x0, y, z0), new THREE.Vector3(x1, y, z0)]),
+                new THREE.LineBasicMaterial({ color: 0xeef0f3, transparent: true, opacity: 0.6 })));
+            // 后边水平线
+            gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+                [new THREE.Vector3(x0, y, z1), new THREE.Vector3(x1, y, z1)]),
+                new THREE.LineBasicMaterial({ color: 0xeef0f3, transparent: true, opacity: 0.6 })));
+            // 左边垂直线（连接前后）
+            gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+                [new THREE.Vector3(x0, y, z0), new THREE.Vector3(x0, y, z1)]),
+                new THREE.LineBasicMaterial({ color: 0xeef0f3, transparent: true, opacity: 0.6 })));
+            // 右边垂直线
+            gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+                [new THREE.Vector3(x1, y, z0), new THREE.Vector3(x1, y, z1)]),
+                new THREE.LineBasicMaterial({ color: 0xeef0f3, transparent: true, opacity: 0.6 })));
+        }
+    }
+
+    // ===== 地面网格线（沿Z方向分隔每个类别） =====
+    if (showGrid) {
+        for (let ci = 0; ci <= catCount; ci++) {
+            const gx = xOffset + ci * unitWidth;
+            gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+                [new THREE.Vector3(gx, 0, z0), new THREE.Vector3(gx, 0, z1)]),
+                new THREE.LineBasicMaterial({ color: 0xf0f1f3, transparent: true, opacity: 0.5 })));
+        }
+        for (let si = 0; si <= serCount; si++) {
+            const gz = zOffset - si * unitWidth;
+            gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+                [new THREE.Vector3(x0, 0, gz), new THREE.Vector3(x1, 0, gz)]),
+                new THREE.LineBasicMaterial({ color: 0xf0f1f3, transparent: true, opacity: 0.5 })));
+        }
+    }
+
+    // ===== X轴类别标签 =====
+    for (let ci = 0; ci < catCount; ci++) {
+        const x = xOffset + ci * unitWidth + unitWidth / 2;
+        const catLabel = createLabel(categories[ci], 'axis-label-x');
+        catLabel.position.set(x, -0.4, z0 + 0.3);
+        labelGroup.add(catLabel);
+    }
+
+    // ===== Z轴系列标签 =====
+    for (let si = 0; si < serCount; si++) {
+        const z = zOffset - si * unitWidth - unitWidth / 2;
+        const serLabel = createLabel(series[si].name, 'axis-label-z');
+        serLabel.position.set(x0 - 0.2, -0.4, z);
+        labelGroup.add(serLabel);
+    }
+
+    // ===== 轴标题 =====
+    const xTitle = createLabel(document.getElementById('xField') ? document.getElementById('xField').value : 'X轴', 'axis-title');
+    xTitle.position.set(xOffset + totalWidth / 2, -1.2, z0 + 0.5);
+    labelGroup.add(xTitle);
+
+    const yTitle = createLabel(document.getElementById('yMode') ? (document.getElementById('yMode').value === 'count' ? '记录数' : '合计') : '数值', 'axis-title');
+    yTitle.position.set(x0 - 1.5, yMax / 2, z0);
+    labelGroup.add(yTitle);
+
+    const zTitle = createLabel(document.getElementById('zField') ? document.getElementById('zField').value : 'Z轴', 'axis-title');
+    zTitle.position.set(xOffset - gap - 1.2, 0, -serCount * unitWidth / 2 - 0.3);
+    labelGroup.add(zTitle);
+
+    // 更新图例和统计
+    updateLegend(series, scheme, serCount, maxValue);
+    updateStats(data);
+}
+
+// ===== 图例 =====
+function updateLegend(series, scheme, serCount, maxValue) {
+    const legendDiv = document.getElementById('legend');
+    legendDiv.innerHTML = '';
+    series.forEach((s, i) => {
+        const color = getColor(scheme, i, serCount, 1, maxValue);
+        const hex = '#' + color.getHexString();
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `<div class="color-dot" style="background:${hex}"></div><span>${s.name}</span>`;
+        legendDiv.appendChild(item);
+    });
+}
+
+// ===== 统计信息 =====
+function updateStats(data) {
+    let total = 0, max = 0, maxCat = '', maxSer = '';
+    data.series.forEach(s => {
+        s.data.forEach((v, ci) => {
+            total += v;
+            if (v > max) { max = v; maxCat = data.categories[ci]; maxSer = s.name; }
+        });
+    });
+    document.getElementById('stats-bar').innerHTML =
+        `数据点：<span class="stat-val">${data.categories.length * data.series.length}</span> · ` +
+        `合计：<span class="stat-val">${total}</span><br>` +
+        `峰值：<span class="stat-val">${max}</span>（${maxCat} / ${maxSer}）`;
+}
+
+// ===== 鼠标交互 =====
+function onMouseMove(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const meshes = bars.map(b => b.mesh);
+    const intersects = raycaster.intersectObjects(meshes);
+
+    const tooltip = document.getElementById('tooltip');
+    if (intersects.length > 0) {
+        const d = intersects[0].object.userData;
+        tooltip.innerHTML = `<span class="tt-cat">${d.category} · ${d.series}</span><br><span class="tt-val">${d.value}</span>`;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (event.clientX - rect.left + 14) + 'px';
+        tooltip.style.top = (event.clientY - rect.top - 10) + 'px';
+
+        bars.forEach(b => { b.mesh.material.emissiveIntensity = 0.08; });
+        const idx = meshes.indexOf(intersects[0].object);
+        if (idx >= 0) bars[idx].mesh.material.emissiveIntensity = 0.35;
+    } else {
+        tooltip.style.display = 'none';
+        bars.forEach(b => { b.mesh.material.emissiveIntensity = 0.08; });
+    }
+}
+
+function onCanvasClick() {
+    controls.autoRotate = false;
+    document.getElementById('autoRotate').classList.remove('on');
+}
+
+function onResize() {
+    const container = document.getElementById('canvas-container');
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    labelRenderer.setSize(container.clientWidth, container.clientHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+    labelRenderer.render(scene, camera);
+}
+
+// ===== 全局函数 =====
+window.resetView = function() {
+    controls.target.set(0, 2.5, -3);
+    camera.position.set(18, 14, 18);
+    controls.update();
+};
+
+// 飞书字段选择 -> 生成图表
+function applyFieldSelection() {
+    const xField = document.getElementById('xField').value;
+    const zField = document.getElementById('zField').value;
+    const yMode = document.getElementById('yMode').value;
+    if (xField === zField) {
+        alert('X轴和Z轴不能选择同一个字段');
+        return;
+    }
+    currentData = aggregateFeishuData(xField, zField, yMode);
+    // 更新图表标题
+    document.getElementById('chartTitle').textContent = xField + ' × ' + zField + ' 三维分析';
+    document.getElementById('chartSubtitle').textContent =
+        'X轴：' + xField + ' · Y轴：' + (yMode === 'count' ? '记录数' : '合计') + ' · Z轴：' + zField;
+    buildChart(currentData);
+}
+
+// ===== Toggle 事件 =====
+function bindToggle(id, callback) {
+    const el = document.getElementById(id);
+    el.addEventListener('click', () => {
+        el.classList.toggle('on');
+        if (callback) callback();
+    });
+}
+
+bindToggle('autoRotate', () => {
+    controls.autoRotate = document.getElementById('autoRotate').classList.contains('on');
+});
+bindToggle('showValues', () => buildChart(currentData));
+bindToggle('showGrid', () => buildChart(currentData));
+bindToggle('showShadows', () => buildChart(currentData));
+bindToggle('hideZeros', () => buildChart(currentData));
+
+// ===== Slider 事件 =====
+document.getElementById('rotateSpeed').addEventListener('input', (e) => {
+    controls.autoRotateSpeed = parseFloat(e.target.value);
+    document.getElementById('speedVal').textContent = e.target.value;
+});
+document.getElementById('barGap').addEventListener('input', (e) => {
+    document.getElementById('gapVal').textContent = e.target.value;
+    buildChart(currentData);
+});
+document.getElementById('barWidth').addEventListener('input', (e) => {
+    document.getElementById('widthVal').textContent = e.target.value;
+    buildChart(currentData);
+});
+document.getElementById('colorScheme').addEventListener('change', () => buildChart(currentData));
+
+// 缩放滑块
+function updateZoomLabel(dist) {
+    const pct = Math.round((1 - (dist - 3) / 147) * 100);
+    document.getElementById('zoomVal').textContent = Math.max(1, pct) + '%';
+    document.getElementById('zoomSlider').value = Math.round(dist);
+}
+
+document.getElementById('zoomSlider').addEventListener('input', (e) => {
+    const dist = parseFloat(e.target.value);
+    const dir = controls.target.clone().sub(camera.position).normalize();
+    camera.position.copy(controls.target).sub(dir.multiplyScalar(dist));
+    updateZoomLabel(dist);
+});
+
+window.zoomChart = function(direction) {
+    const currentDist = camera.position.distanceTo(controls.target);
+    const newDist = Math.max(3, Math.min(150, currentDist + direction * -5));
+    const dir = controls.target.clone().sub(camera.position).normalize();
+    camera.position.copy(controls.target).sub(dir.multiplyScalar(newDist));
+    updateZoomLabel(newDist);
+};
+
+// 飞书字段选择按钮
+document.getElementById('applyFieldsBtn').addEventListener('click', applyFieldSelection);
+
+// ===== 启动 =====
+init();
+</script>
+</body>
+</html>
